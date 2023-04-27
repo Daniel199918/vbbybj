@@ -1,0 +1,66 @@
+from pulp import *
+import pandas as pd
+
+# Créer le LpProblem
+prob = LpProblem("Containers Optimisation",LpMaximize)
+
+# Indices
+ports = [1,2,3,4,5,6]
+Index6 = range(6)
+ligne = [1,2,3,4,5,6,7,8,9,10,11]
+mois = [1,2,3,4,5,6,7,8,9]
+
+# Paramètres
+
+Prevision = pd.read_excel('g02n.xlsx', sheet_name='Tableau_1')
+Revenu_Moy = pd.read_excel('g02n.xlsx', sheet_name='Tableau_2')
+Nb_Cont_Dispo_Mai = pd.read_excel('g02n.xlsx', sheet_name='Tableau_3')
+Capacite_Trans = pd.read_excel('g02n.xlsx', sheet_name='Tableau_4')
+Port_ori = pd.read_excel('g02n.xlsx', sheet_name='Tableau_5')
+Desti = pd.read_excel('g02n.xlsx', sheet_name='Tableau_6')
+
+Pjt = {} # marge mensuelle par container par ligne par mois
+Djt = {} # demande mensuelle par ligne par mois
+Mi = {} # capacité max de stockage par port
+Kj = {} # capacité max par ligne
+Ei = {} # coût d’entrepôt par port
+Ni = {} # coût de chargement par port
+Wi = {} # coût de déchargement par port
+Lit = {} # coût de leasing par port
+
+# Variables
+
+cjt = pulp.LpVariable.dicts("c", (ligne, mois), lowBound=0, cat='Continuous') #containers pleins transportés par ligne par mois
+bjt = pulp.LpVariable.dicts("b", (ligne, mois), lowBound=0, cat='Continuous') #containers vides transportés par ligne par mois
+rjt = pulp.LpVariable.dicts("r", (ligne, mois), lowBound=0, cat='Continuous') #quantité sur ligne par mois
+qit = pulp.LpVariable.dicts("q", (ports, mois), lowBound=0, cat='Continuous') #quantité stockée par port par mois
+Zit = pulp.LpVariable.dicts("Z", (ports, mois), lowBound=0, cat='Continuous') #quantité de containers pris en leasing par port
+Git = pulp.LpVariable.dicts("G", (ports, mois), lowBound=0, cat='Continuous') #quantité de containers qui part d’un port par mois
+Fit = pulp.LpVariable.dicts("F", (ports, mois), lowBound=0, cat='Continuous') #quantité de containers qui arrive dans un port
+
+
+# Fonction objectif
+
+prob += lpSum([p[j][t] * c[j][t] for j in range(11) for t in range(9)]) \
+        - lpSum([r[i][j][t] * (n[i] + w[i]) for i in range(6) for j in range(11) for t in range(9)]) \
+        - lpSum([Q[i][t] * e[i] for i in range(6) for t in range(9)]) \
+        - lpSum([L[i] * Z[i][t] for i in range(6) for t in range(9)])
+
+
+# Contraintes
+
+prob += variables[(j, t)] == cjt[j][t] + bjt[j][t]
+prob += rjt[j][t] <= kj[j]
+prob += r[(i, j, t)] >= 0
+prob += c[(i, j, t)] >= 0
+prob += b[(i, j, t)] >= 0
+prob += q[(i, t)] <= m[(i)]
+prob += Z[(i)] <= 0
+prob += Z[(i)] == 0
+prob += cjt[j][t] >= 0.6 * djt[j][t]
+prob += q[(i, t)] == q[(i, t-1)] - lpSum(g[(i, j, t)] for j in range(1, 9)) + lpSum(f[(i, j, t)] for j in range(1, 9))
+prob += lpSum(g[(i, j, t)] for j in range(1, 9)) == lpSum(r[(j, t)] for j in range(1, 9)) == lpSum(f[(i, j, t)] for j in range(1, 9))
+prob += q[(i, t)] >= 0
+prob += z[(i, t)] >= 0
+prob += g[(i, j, t)] >= 0
+prob += f[(i, j, t)] >= 0
